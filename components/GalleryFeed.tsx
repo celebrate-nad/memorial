@@ -1,9 +1,51 @@
 "use client";
 
+import { useRef, useEffect, useState } from "react";
 import type { MediaItem } from "@/lib/media";
 
 interface Props {
   media: MediaItem[];
+}
+
+function LazyVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref}>
+      {visible ? (
+        <video
+          src={src}
+          controls
+          playsInline
+          preload="metadata"
+          className="w-full"
+        />
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center bg-neutral-800 text-neutral-500">
+          <span className="text-3xl">🎬</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function GalleryFeed({ media }: Props) {
@@ -23,13 +65,7 @@ export default function GalleryFeed({ media }: Props) {
               loading="lazy"
             />
           ) : (
-            <video
-              src={item.url}
-              controls
-              playsInline
-              preload="metadata"
-              className="w-full"
-            />
+            <LazyVideo src={item.url} />
           )}
           <div className="flex items-center justify-between px-3 py-2 text-xs text-neutral-500">
             <span>{item.pathname.split("/").pop()}</span>
