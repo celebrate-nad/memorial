@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 interface Props {
-  active: "select" | "reorder";
+  active: "select" | "reorder" | "duplicates";
 }
 
 export default function AdminNav({ active }: Props) {
@@ -28,6 +28,16 @@ export default function AdminNav({ active }: Props) {
         }`}
       >
         Reorder Memorial
+      </Link>
+      <Link
+        href="/admin/duplicates"
+        className={`rounded-md px-4 py-2 text-sm transition ${
+          active === "duplicates"
+            ? "bg-neutral-700 text-neutral-100"
+            : "text-neutral-400 hover:text-neutral-200"
+        }`}
+      >
+        Duplicates
       </Link>
     </nav>
   );
