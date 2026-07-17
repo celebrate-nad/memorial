@@ -53,12 +53,12 @@ function importNewMemorialMedia() {
   let skipped = 0;
 
   for (const thread of threads) {
+    // The search query already excludes threads carrying the processed
+    // label, so every message in this thread is safe to process. Gmail
+    // labels apply at the thread level (GmailMessage has no getLabels()),
+    // so there's no per-message label to check here.
     const messages = thread.getMessages();
     for (const message of messages) {
-      if (message.getLabels().some((l) => l.getName() === PROCESSED_LABEL_NAME)) {
-        continue;
-      }
-
       const attachments = message.getAttachments({
         includeInlineImages: false,
         includeAttachments: true,
