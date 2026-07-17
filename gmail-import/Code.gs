@@ -51,6 +51,7 @@ function importNewMemorialMedia() {
 
   let uploaded = 0;
   let skipped = 0;
+  let failed = 0;
 
   for (const thread of threads) {
     // The search query already excludes threads carrying the processed
@@ -58,6 +59,8 @@ function importNewMemorialMedia() {
     // labels apply at the thread level (GmailMessage has no getLabels()),
     // so there's no per-message label to check here.
     const messages = thread.getMessages();
+    let threadHadFailure = false;
+
     for (const message of messages) {
       const attachments = message.getAttachments({
         includeInlineImages: false,
@@ -67,20 +70,35 @@ function importNewMemorialMedia() {
       for (const attachment of attachments) {
         const result = tryUploadAttachment(attachment, token);
         if (result === "uploaded") uploaded++;
-        else skipped++;
+        else if (result === "skipped") skipped++;
+        else {
+          failed++;
+          threadHadFailure = true;
+        }
       }
 
       message.markRead();
     }
-    thread.addLabel(label);
+
+    // Only mark the thread as processed if nothing failed. A failed
+    // upload (e.g. a bad token or a Vercel outage) should be retried on
+    // the next run instead of being silently lost.
+    if (!threadHadFailure) {
+      thread.addLabel(label);
+    }
   }
 
-  Logger.log(`Done. Uploaded ${uploaded} file(s), skipped ${skipped}.`);
+  Logger.log(
+    `Done. Uploaded ${uploaded} file(s), skipped ${skipped}, failed ${failed}.`,
+  );
 }
 
 /**
  * Uploads a single Gmail attachment to Vercel Blob if it looks like a
- * supported photo or video. Returns "uploaded" or "skipped".
+ * supported photo or video. Returns:
+ *   "uploaded" - upload succeeded
+ *   "skipped"  - not a supported type, or too large (won't be retried)
+ *   "failed"   - upload attempt errored (thread will be retried later)
  */
 function tryUploadAttachment(attachment, token) {
   const name = attachment.getName() || "attachment";
@@ -126,7 +144,7 @@ function tryUploadAttachment(attachment, token) {
     Logger.log(
       `Upload failed for "${name}" (HTTP ${status}): ${response.getContentText()}`,
     );
-    return "skipped";
+    return "failed";
   }
 
   Logger.log(`Uploaded "${name}" -> ${pathname}`);
@@ -164,14 +182,16 @@ function ensureLabelExists(name) {
 }
 
 /**
- * Diagnostic helper: logs attachment details for the messages that would
- * currently be picked up by SEARCH_QUERY, without uploading anything.
- * Run this manually from the editor if uploads aren't finding files, to
- * see whether attachments are being detected as inline vs. regular.
+ * Diagnostic helper: logs attachment details for recent mail with
+ * attachments, without uploading anything and WITHOUT excluding threads
+ * that already carry the processed label (deliberately ignores
+ * PROCESSED_LABEL_NAME so it can't hide anything while debugging). Run
+ * this manually from the editor if uploads aren't finding files, to see
+ * whether attachments are being detected as inline vs. regular.
  */
 function debugListAttachments() {
-  const threads = GmailApp.search(SEARCH_QUERY, 0, 10);
-  Logger.log(`Found ${threads.length} thread(s).`);
+  const threads = GmailApp.search("has:attachment", 0, 10);
+  Logger.log(`Found ${threads.length} thread(s) with attachments (any label).`);
 
   for (const thread of threads) {
     for (const message of thread.getMessages()) {
@@ -192,6 +212,26 @@ function debugListAttachments() {
       }
     }
   }
+}
+
+/**
+ * Recovery helper: removes the processed label from every thread that
+ * has it, so importNewMemorialMedia will re-examine them on the next
+ * run. Use this if threads got labeled before their attachments were
+ * correctly processed (for example, while debugging).
+ */
+function recoverUnlabelAllProcessed() {
+  const label = GmailApp.getUserLabelByName(PROCESSED_LABEL_NAME);
+  if (!label) {
+    Logger.log(`No "${PROCESSED_LABEL_NAME}" label found, nothing to do.`);
+    return;
+  }
+  const threads = label.getThreads();
+  Logger.log(`Removing label from ${threads.length} thread(s).`);
+  for (const thread of threads) {
+    thread.removeLabel(label);
+  }
+  Logger.log("Done. Run importNewMemorialMedia or debugListAttachments again.");
 }
 
 /**
