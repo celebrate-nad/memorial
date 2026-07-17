@@ -1,5 +1,4 @@
 import { list } from "@vercel/blob";
-import { getOrderConfig } from "@/lib/order";
 
 export interface MediaItem {
   url: string;
@@ -64,25 +63,10 @@ export async function getMediaItems(): Promise<MediaItem[]> {
     } while (cursor);
   }
 
-  // Apply custom ordering if one exists, otherwise fall back to upload date
-  const order = await getOrderConfig();
-
-  if (order.length > 0) {
-    const orderMap = new Map(order.map((pathname, index) => [pathname, index]));
-    items.sort((a, b) => {
-      const aIdx = orderMap.get(a.pathname) ?? Number.MAX_SAFE_INTEGER;
-      const bIdx = orderMap.get(b.pathname) ?? Number.MAX_SAFE_INTEGER;
-      // Items not in the order list go to the end, sorted by upload date
-      if (aIdx === Number.MAX_SAFE_INTEGER && bIdx === Number.MAX_SAFE_INTEGER) {
-        return new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
-      }
-      return aIdx - bIdx;
-    });
-  } else {
-    items.sort(
-      (a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime(),
-    );
-  }
+  // Sort by upload date (oldest first)
+  items.sort(
+    (a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime(),
+  );
 
   return items;
 }

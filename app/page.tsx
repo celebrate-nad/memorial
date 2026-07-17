@@ -1,24 +1,17 @@
-import { getMediaItems, getMusicItems } from "@/lib/media";
+import { getMediaItems } from "@/lib/media";
 import { siteConfig } from "@/lib/site-config";
-import Slideshow from "@/components/Slideshow";
+import GalleryFeed from "@/components/GalleryFeed";
 
-// Always fetch the latest list of photos/videos/music on each request
-// instead of caching it at build time, so newly uploaded memories show
-// up without needing a redeploy.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function Home() {
   let media: Awaited<ReturnType<typeof getMediaItems>> = [];
-  let music: Awaited<ReturnType<typeof getMusicItems>> = [];
   let configError: string | null = null;
 
   try {
-    [media, music] = await Promise.all([getMediaItems(), getMusicItems()]);
+    media = await getMediaItems();
   } catch (error) {
-    // Most commonly this means BLOB_READ_WRITE_TOKEN is missing or the
-    // Blob store isn't connected to this project yet. Show a friendly
-    // message instead of a crash page.
     configError =
       error instanceof Error ? error.message : "Failed to load media.";
   }
@@ -37,14 +30,30 @@ export default async function Home() {
   }
 
   return (
-    <Slideshow
-      media={media}
-      music={music}
-      name={siteConfig.name}
-      dates={siteConfig.dates}
-      message={siteConfig.message}
-      photoDurationMs={siteConfig.photoDurationMs}
-      maxVideoDurationMs={siteConfig.maxVideoDurationMs}
-    />
+    <main className="min-h-screen bg-black">
+      {/* Header */}
+      <header className="sticky top-0 z-10 border-b border-neutral-800 bg-black/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-xl items-center justify-between px-4 py-4">
+          <h1 className="text-lg font-light tracking-wide text-neutral-100">
+            {siteConfig.name}
+          </h1>
+          <a
+            href="/memorial"
+            className="text-sm text-neutral-400 transition hover:text-neutral-200"
+          >
+            Memorial →
+          </a>
+        </div>
+      </header>
+
+      {/* Feed */}
+      <GalleryFeed media={media} />
+
+      {media.length === 0 && (
+        <div className="py-20 text-center text-neutral-500">
+          No photos or videos have been shared yet.
+        </div>
+      )}
+    </main>
   );
 }

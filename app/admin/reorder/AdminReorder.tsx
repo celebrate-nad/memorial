@@ -3,15 +3,15 @@
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MediaItem } from "@/lib/media";
+import AdminNav from "../AdminNav";
 
 interface Props {
   initialMedia: MediaItem[];
 }
 
-export default function AdminDashboard({ initialMedia }: Props) {
+export default function AdminReorder({ initialMedia }: Props) {
   const [media, setMedia] = useState<MediaItem[]>(initialMedia);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -47,11 +47,11 @@ export default function AdminDashboard({ initialMedia }: Props) {
   const saveOrder = async () => {
     setSaving(true);
     try {
-      const order = media.map((m) => m.pathname);
-      const res = await fetch("/api/admin/reorder", {
+      const selection = media.map((m) => m.pathname);
+      const res = await fetch("/api/admin/curate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order }),
+        body: JSON.stringify({ selection }),
       });
       if (!res.ok) throw new Error("Failed to save");
       showMessage("success", "Order saved");
@@ -59,26 +59,6 @@ export default function AdminDashboard({ initialMedia }: Props) {
       showMessage("error", "Failed to save order");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDelete = async (pathname: string) => {
-    if (!confirm(`Delete ${pathname}? This cannot be undone.`)) return;
-
-    setDeleting(pathname);
-    try {
-      const res = await fetch("/api/admin/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pathname }),
-      });
-      if (!res.ok) throw new Error("Failed to delete");
-      setMedia((prev) => prev.filter((m) => m.pathname !== pathname));
-      showMessage("success", "Deleted");
-    } catch {
-      showMessage("error", "Failed to delete");
-    } finally {
-      setDeleting(null);
     }
   };
 
@@ -91,21 +71,11 @@ export default function AdminDashboard({ initialMedia }: Props) {
     <main className="min-h-screen bg-neutral-950 px-4 py-8">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-light text-neutral-200">
             Media Admin
           </h1>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-neutral-500">
-              {media.length} items
-            </span>
-            <button
-              onClick={saveOrder}
-              disabled={saving}
-              className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save Order"}
-            </button>
             <button
               onClick={handleLogout}
               className="rounded border border-neutral-700 px-4 py-2 text-sm text-neutral-400 transition hover:border-neutral-500 hover:text-neutral-200"
@@ -114,6 +84,8 @@ export default function AdminDashboard({ initialMedia }: Props) {
             </button>
           </div>
         </div>
+
+        <AdminNav active="reorder" />
 
         {/* Message toast */}
         {message && (
@@ -128,13 +100,21 @@ export default function AdminDashboard({ initialMedia }: Props) {
           </div>
         )}
 
-        {/* Instructions */}
-        <p className="mb-6 text-sm text-neutral-500">
-          Drag items to reorder, then click &quot;Save Order&quot; to persist.
-          Changes affect the slideshow immediately after saving.
-        </p>
+        {/* Action bar */}
+        <div className="mb-6 flex items-center justify-between">
+          <p className="text-sm text-neutral-500">
+            Drag items to reorder the memorial slideshow. {media.length} items selected.
+          </p>
+          <button
+            onClick={saveOrder}
+            disabled={saving}
+            className="rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Order"}
+          </button>
+        </div>
 
-        {/* Media grid */}
+        {/* Draggable grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {media.map((item, index) => (
             <div
@@ -145,9 +125,9 @@ export default function AdminDashboard({ initialMedia }: Props) {
               onDrop={handleDrop}
               className="group relative cursor-grab overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 transition hover:border-neutral-600 active:cursor-grabbing"
             >
-              {/* Thumbnail */}
               <div className="aspect-square">
                 {item.kind === "photo" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={item.url}
                     alt={item.pathname}
@@ -165,16 +145,6 @@ export default function AdminDashboard({ initialMedia }: Props) {
                 {index + 1}
               </div>
 
-              {/* Delete button */}
-              <button
-                onClick={() => handleDelete(item.pathname)}
-                disabled={deleting === item.pathname}
-                className="absolute right-2 top-2 rounded bg-red-900/80 px-2 py-0.5 text-xs text-red-200 opacity-0 transition hover:bg-red-800 group-hover:opacity-100 disabled:opacity-50"
-                title="Delete"
-              >
-                {deleting === item.pathname ? "..." : "✕"}
-              </button>
-
               {/* Filename */}
               <div className="truncate px-2 py-1.5 text-xs text-neutral-500">
                 {item.pathname.split("/").pop()}
@@ -185,7 +155,7 @@ export default function AdminDashboard({ initialMedia }: Props) {
 
         {media.length === 0 && (
           <div className="py-20 text-center text-neutral-500">
-            No media found. Upload photos via the Gmail import.
+            No photos selected for the memorial yet. Go to &quot;Select Photos&quot; to choose some.
           </div>
         )}
       </div>

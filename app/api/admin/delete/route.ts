@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { del, list } from "@vercel/blob";
-import { getOrderConfig, saveOrderConfig } from "@/lib/order";
+import { getCurationConfig, saveCurationConfig } from "@/lib/curation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
 
     await del(blob.url);
 
-    // Also remove from order config if present
-    const order = await getOrderConfig();
-    const updated = order.filter((p) => p !== pathname);
-    if (updated.length !== order.length) {
-      await saveOrderConfig(updated);
+    // Also remove from curation config if present
+    const curation = await getCurationConfig();
+    const updated = curation.filter((p) => p !== pathname);
+    if (updated.length !== curation.length) {
+      await saveCurationConfig(updated);
     }
 
     return NextResponse.json({ success: true });
