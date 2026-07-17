@@ -164,6 +164,37 @@ function ensureLabelExists(name) {
 }
 
 /**
+ * Diagnostic helper: logs attachment details for the messages that would
+ * currently be picked up by SEARCH_QUERY, without uploading anything.
+ * Run this manually from the editor if uploads aren't finding files, to
+ * see whether attachments are being detected as inline vs. regular.
+ */
+function debugListAttachments() {
+  const threads = GmailApp.search(SEARCH_QUERY, 0, 10);
+  Logger.log(`Found ${threads.length} thread(s).`);
+
+  for (const thread of threads) {
+    for (const message of thread.getMessages()) {
+      const regular = message.getAttachments({
+        includeInlineImages: false,
+        includeAttachments: true,
+      });
+      const withInline = message.getAttachments({
+        includeInlineImages: true,
+        includeAttachments: true,
+      });
+      Logger.log(
+        `Subject: "${message.getSubject()}" | from: ${message.getFrom()} | ` +
+          `regular attachments: ${regular.length} | with inline included: ${withInline.length}`,
+      );
+      for (const a of withInline) {
+        Logger.log(`  - "${a.getName()}" (${a.getContentType()}, ${a.getSize()} bytes)`);
+      }
+    }
+  }
+}
+
+/**
  * One-time setup: creates the Gmail label and a time-based trigger that
  * runs importNewMemorialMedia every 10 minutes. Run this once manually
  * from the Apps Script editor (select this function, click Run).
