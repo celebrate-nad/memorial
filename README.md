@@ -98,6 +98,13 @@ your own is needed.
 - Supported photo types: jpg, jpeg, png, gif, webp, heic, heif.
 - Supported video types: mp4, mov, webm, m4v, avi.
 - Gmail attachments are limited to 25MB per Gmail's own limits.
+- Photos sent from phone mail apps (iPhone Mail, Gmail app) often arrive
+  as *inline* images rather than regular attachments. The importer picks
+  these up too, filtering out anything smaller than ~15KB (to skip
+  embedded signature logos/icons) so only real photos get imported.
+- If threads ever get incorrectly marked as processed (for example, while
+  debugging), run the `recoverUnlabelAllProcessed` function in the Apps
+  Script editor to make them eligible for re-import.
 - The importer only processes mail matching `has:attachment
   -label:memorial-imported` in the connected inbox. If that inbox also
   receives unrelated mail with attachments, narrow the `SEARCH_QUERY`

@@ -32,6 +32,11 @@ const SEARCH_QUERY = `has:attachment -label:${PROCESSED_LABEL_NAME}`;
 // Maximum attachment size to accept, matching Gmail's own attachment limit.
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
+// Minimum size to accept. Filters out tiny inline images like email
+// signature logos or tracking pixels, which show up as "inline images"
+// alongside real inline photos once includeInlineImages is enabled below.
+const MIN_ATTACHMENT_BYTES = 15 * 1024;
+
 const PHOTO_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"];
 const VIDEO_EXTENSIONS = ["mp4", "mov", "webm", "m4v", "avi"];
 
@@ -62,8 +67,13 @@ function importNewMemorialMedia() {
     let threadHadFailure = false;
 
     for (const message of messages) {
+      // Photos sent from phone mail apps (iPhone Mail, Gmail app) commonly
+      // arrive as inline images rather than regular attachments, even
+      // though they're full-size photos. Include them; the extension and
+      // size checks below still filter out anything unwanted (e.g. tiny
+      // embedded signature logos).
       const attachments = message.getAttachments({
-        includeInlineImages: false,
+        includeInlineImages: true,
         includeAttachments: true,
       });
 
@@ -116,6 +126,13 @@ function tryUploadAttachment(attachment, token) {
 
   if (size > MAX_ATTACHMENT_BYTES) {
     Logger.log(`Skipping "${name}": ${size} bytes exceeds the size limit.`);
+    return "skipped";
+  }
+
+  if (size < MIN_ATTACHMENT_BYTES) {
+    Logger.log(
+      `Skipping "${name}": ${size} bytes is too small, likely a logo/icon, not a photo.`,
+    );
     return "skipped";
   }
 
