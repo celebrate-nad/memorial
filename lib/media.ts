@@ -1,4 +1,5 @@
 import { list } from "@vercel/blob";
+import { getMusicOrderConfig } from "@/lib/music-order";
 
 export interface MediaItem {
   url: string;
@@ -73,8 +74,8 @@ export async function getMediaItems(): Promise<MediaItem[]> {
 
 /**
  * Lists all tracks uploaded under the "music/" prefix in the Blob store.
- * Sorted alphabetically by filename so you control playback order by naming
- * files "01-song.mp3", "02-song.mp3", etc.
+ * Respects admin-defined order if one exists, otherwise falls back to
+ * alphabetical by filename.
  */
 export async function getMusicItems(): Promise<MusicItem[]> {
   const items: MusicItem[] = [];
@@ -90,7 +91,21 @@ export async function getMusicItems(): Promise<MusicItem[]> {
     cursor = result.cursor;
   } while (cursor);
 
-  items.sort((a, b) => a.pathname.localeCompare(b.pathname));
+  const order = await getMusicOrderConfig();
+
+  if (order.length > 0) {
+    const orderMap = new Map(order.map((pathname, index) => [pathname, index]));
+    items.sort((a, b) => {
+      const aIdx = orderMap.get(a.pathname) ?? Number.MAX_SAFE_INTEGER;
+      const bIdx = orderMap.get(b.pathname) ?? Number.MAX_SAFE_INTEGER;
+      if (aIdx === Number.MAX_SAFE_INTEGER && bIdx === Number.MAX_SAFE_INTEGER) {
+        return a.pathname.localeCompare(b.pathname);
+      }
+      return aIdx - bIdx;
+    });
+  } else {
+    items.sort((a, b) => a.pathname.localeCompare(b.pathname));
+  }
 
   return items;
 }
