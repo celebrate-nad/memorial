@@ -8,7 +8,7 @@ export const siteConfig = {
   message:
     "Surrounded by the people who loved her. Thank you for sharing your photos and memories.",
   // How long each photo stays on screen, in milliseconds.
-  photoDurationMs: 6000,
+  photoDurationMs: 4000,
   // Maximum time a video is allowed to play before we move on, in milliseconds.
   // Prevents one long video from stalling the slideshow. Set to null to let
   // every video play to completion.
