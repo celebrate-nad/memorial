@@ -86,6 +86,7 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
   const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
@@ -95,13 +96,30 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
   const rotateRight = () => setRotation((r) => (r + 90) % 360);
 
   const handleSave = async () => {
-    if (!croppedAreaPixels) return;
+    if (!croppedAreaPixels) {
+      console.error("[PhotoEditor] croppedAreaPixels is null, cannot save");
+      setError("Crop area not ready. Try adjusting the image first.");
+      return;
+    }
     setSaving(true);
+    setError(null);
     try {
+      console.log("[PhotoEditor] Starting getCroppedImg", {
+        rotation,
+        crop: croppedAreaPixels,
+        imageUrl: imageUrl.slice(0, 80),
+      });
       const blob = await getCroppedImg(imageUrl, croppedAreaPixels, rotation);
+      console.log("[PhotoEditor] Got blob", { size: blob.size, type: blob.type });
+      if (blob.size === 0) {
+        throw new Error("Generated image is empty (0 bytes). Possible CORS issue.");
+      }
       await onSave(pathname, blob);
-    } catch {
-      // Error handled by parent
+      console.log("[PhotoEditor] onSave completed successfully");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error during save";
+      console.error("[PhotoEditor] Save failed:", msg, err);
+      setError(msg);
     } finally {
       setSaving(false);
     }
@@ -148,6 +166,13 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-900/50 px-4 py-2 text-sm text-red-200">
+          Error: {error}
+        </div>
+      )}
 
       {/* Cropper */}
       <div className="relative flex-1">

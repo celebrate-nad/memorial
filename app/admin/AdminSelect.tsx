@@ -78,6 +78,7 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
   };
 
   const handleSaveEdit = async (pathname: string, blob: Blob) => {
+    console.log("[AdminSelect] handleSaveEdit called", { pathname, blobSize: blob.size, blobType: blob.type });
     const formData = new FormData();
     formData.append("file", blob, "edited.jpg");
     formData.append("pathname", pathname);
@@ -87,12 +88,13 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
       body: formData,
     });
 
-    if (!res.ok) {
-      showMessage("error", "Failed to save edit");
-      return;
-    }
-
     const data = await res.json();
+    console.log("[AdminSelect] /api/admin/replace response", { ok: res.ok, status: res.status, data });
+
+    if (!res.ok) {
+      showMessage("error", `Failed to save edit: ${data.error || res.status}`);
+      throw new Error(data.error || "Failed to save edit");
+    }
 
     // Update local media state with new pathname/url
     setMedia((prev) =>
