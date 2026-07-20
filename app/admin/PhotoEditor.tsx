@@ -61,9 +61,16 @@ async function getCroppedImg(
     crop.height,
   );
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     croppedCanvas.toBlob(
-      (blob) => resolve(blob!),
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Canvas toBlob failed — likely a CORS issue with this image URL."));
+          return;
+        }
+        console.log("[getCroppedImg] Success", { size: blob.size });
+        resolve(blob);
+      },
       "image/jpeg",
       0.92,
     );
