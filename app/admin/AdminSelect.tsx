@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MediaItem } from "@/lib/media";
 import AdminNav from "./AdminNav";
+import PhotoEditor from "./PhotoEditor";
 
 interface Props {
   initialMedia: MediaItem[];
@@ -15,6 +16,7 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaItem[]>(initialMedia);
+  const [editing, setEditing] = useState<MediaItem | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
 
@@ -69,6 +71,45 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
     } finally {
       setDeleting(null);
     }
+  };
+
+  const handleEdit = (item: MediaItem) => {
+    setEditing(item);
+  };
+
+  const handleSaveEdit = async (pathname: string, blob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", blob, "edited.jpg");
+    formData.append("pathname", pathname);
+
+    const res = await fetch("/api/admin/replace", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      showMessage("error", "Failed to save edit");
+      return;
+    }
+
+    const data = await res.json();
+
+    // Update local media state with new pathname/url
+    setMedia((prev) =>
+      prev.map((m) =>
+        m.pathname === pathname
+          ? { ...m, pathname: data.pathname, url: data.url }
+          : m,
+      ),
+    );
+
+    // Update selection if the old pathname was selected
+    setSelection((prev) =>
+      prev.map((p) => (p === pathname ? data.pathname : p)),
+    );
+
+    setEditing(null);
+    showMessage("success", "Photo saved");
   };
 
   const handleLogout = async () => {
@@ -171,6 +212,17 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
                   <div className="absolute left-2 top-2 h-6 w-6 rounded-full border-2 border-neutral-500 bg-black/50" />
                 )}
 
+                {/* Edit button (photos only) */}
+                {item.kind === "photo" && (
+                  <button
+                    onClick={() => handleEdit(item)}
+                    className="absolute right-2 top-8 rounded bg-neutral-800/80 px-2 py-0.5 text-xs text-neutral-200 opacity-0 transition hover:bg-neutral-700 group-hover:opacity-100"
+                    title="Edit (crop/rotate)"
+                  >
+                    ✎
+                  </button>
+                )}
+
                 {/* Delete button */}
                 <button
                   onClick={() => handleDelete(item.pathname)}
@@ -196,6 +248,16 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
           </div>
         )}
       </div>
+
+      {/* Photo editor modal */}
+      {editing && (
+        <PhotoEditor
+          imageUrl={editing.url}
+          pathname={editing.pathname}
+          onSave={handleSaveEdit}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </main>
   );
 }
