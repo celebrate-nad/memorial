@@ -88,7 +88,16 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
       body: formData,
     });
 
-    const data = await res.json();
+    let data;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      console.error("[AdminSelect] Non-JSON response from /api/admin/replace", { status: res.status, text: text.slice(0, 500) });
+      throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`);
+    }
+
     console.log("[AdminSelect] /api/admin/replace response", { ok: res.ok, status: res.status, data });
 
     if (!res.ok) {
