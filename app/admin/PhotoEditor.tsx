@@ -12,7 +12,7 @@ interface Props {
 
 /**
  * Rotates an image by the given degrees (90° increments) using canvas.
- * No crop applied — just rotation of the full image.
+ * Resizes to max 1920px on the longest side to keep file size under Vercel limits.
  */
 async function getRotatedImg(imageSrc: string, rotation: number): Promise<Blob> {
   const image = await createImage(imageSrc);
@@ -22,17 +22,35 @@ async function getRotatedImg(imageSrc: string, rotation: number): Promise<Blob> 
   // Normalize rotation to 0, 90, 180, 270
   const normalizedRotation = ((rotation % 360) + 360) % 360;
 
+  let targetWidth: number;
+  let targetHeight: number;
+
   if (normalizedRotation === 90 || normalizedRotation === 270) {
-    canvas.width = image.height;
-    canvas.height = image.width;
+    targetWidth = image.height;
+    targetHeight = image.width;
   } else {
-    canvas.width = image.width;
-    canvas.height = image.height;
+    targetWidth = image.width;
+    targetHeight = image.height;
   }
 
-  ctx.translate(canvas.width / 2, canvas.height / 2);
+  // Scale down if larger than MAX_DIMENSION
+  const MAX_DIMENSION = 1920;
+  const scale = Math.min(1, MAX_DIMENSION / Math.max(targetWidth, targetHeight));
+  targetWidth = Math.round(targetWidth * scale);
+  targetHeight = Math.round(targetHeight * scale);
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  ctx.translate(targetWidth / 2, targetHeight / 2);
   ctx.rotate((normalizedRotation * Math.PI) / 180);
-  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+  ctx.drawImage(
+    image,
+    -Math.round(image.width * scale) / 2,
+    -Math.round(image.height * scale) / 2,
+    Math.round(image.width * scale),
+    Math.round(image.height * scale),
+  );
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -44,7 +62,7 @@ async function getRotatedImg(imageSrc: string, rotation: number): Promise<Blob> 
         resolve(blob);
       },
       "image/jpeg",
-      0.92,
+      0.85,
     );
   });
 }
@@ -81,12 +99,20 @@ async function getCroppedImg(
   // Draw rotated image
   ctx.drawImage(image, 0, 0);
 
+  // Scale down cropped result if needed
+  const MAX_DIMENSION = 1920;
+  let outWidth = crop.width;
+  let outHeight = crop.height;
+  const outScale = Math.min(1, MAX_DIMENSION / Math.max(outWidth, outHeight));
+  outWidth = Math.round(outWidth * outScale);
+  outHeight = Math.round(outHeight * outScale);
+
   // Extract the cropped area
   const croppedCanvas = document.createElement("canvas");
   const croppedCtx = croppedCanvas.getContext("2d")!;
 
-  croppedCanvas.width = crop.width;
-  croppedCanvas.height = crop.height;
+  croppedCanvas.width = outWidth;
+  croppedCanvas.height = outHeight;
 
   croppedCtx.drawImage(
     canvas,
@@ -96,8 +122,8 @@ async function getCroppedImg(
     crop.height,
     0,
     0,
-    crop.width,
-    crop.height,
+    outWidth,
+    outHeight,
   );
 
   return new Promise((resolve, reject) => {
@@ -111,7 +137,7 @@ async function getCroppedImg(
         resolve(blob);
       },
       "image/jpeg",
-      0.92,
+      0.85,
     );
   });
 }
