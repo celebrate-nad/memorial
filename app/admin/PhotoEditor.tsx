@@ -11,6 +11,45 @@ interface Props {
 }
 
 /**
+ * Rotates an image by the given degrees (90° increments) using canvas.
+ * No crop applied — just rotation of the full image.
+ */
+async function getRotatedImg(imageSrc: string, rotation: number): Promise<Blob> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+
+  // Normalize rotation to 0, 90, 180, 270
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+
+  if (normalizedRotation === 90 || normalizedRotation === 270) {
+    canvas.width = image.height;
+    canvas.height = image.width;
+  } else {
+    canvas.width = image.width;
+    canvas.height = image.height;
+  }
+
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((normalizedRotation * Math.PI) / 180);
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Canvas toBlob failed."));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      0.92,
+    );
+  });
+}
+
+/**
  * Applies crop and rotation to an image using canvas.
  */
 async function getCroppedImg(
@@ -105,28 +144,34 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
   const rotateRight = () => setRotation((r) => (r + 90) % 360);
 
   const handleSave = async () => {
-    if (!croppedAreaPixels) {
-      console.error("[PhotoEditor] croppedAreaPixels is null, cannot save");
-      setError("Crop area not ready. Try adjusting the image first.");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
-      console.log("[PhotoEditor] Starting getCroppedImg", {
-        rotation,
-        crop: croppedAreaPixels,
-        imageUrl: proxiedUrl.slice(0, 80),
-      });
-      const blob = await getCroppedImg(proxiedUrl, croppedAreaPixels, rotation);
+      let blob: Blob;
+
+      // If only rotated (no zoom/crop changes), use the simpler rotation-only path
+      const isRotationOnly = rotation !== 0 && zoom === 1;
+
+      if (isRotationOnly) {
+        console.log("[PhotoEditor] Rotation-only save", { rotation });
+        blob = await getRotatedImg(proxiedUrl, rotation);
+      } else if (croppedAreaPixels) {
+        console.log("[PhotoEditor] Crop+rotation save", { rotation, crop: croppedAreaPixels });
+        blob = await getCroppedImg(proxiedUrl, croppedAreaPixels, rotation);
+      } else {
+        setError("No changes to save. Try rotating or cropping first.");
+        setSaving(false);
+        return;
+      }
+
       console.log("[PhotoEditor] Got blob", { size: blob.size, type: blob.type });
       if (blob.size === 0) {
-        throw new Error("Generated image is empty (0 bytes). Possible CORS issue.");
+        throw new Error("Generated image is empty (0 bytes).");
       }
       await onSave(pathname, blob);
       console.log("[PhotoEditor] onSave completed successfully");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error during save";
+      const msg = err instanceof Error ? err.message : String(err);
       console.error("[PhotoEditor] Save failed:", msg, err);
       setError(msg);
     } finally {
