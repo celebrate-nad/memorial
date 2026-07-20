@@ -80,9 +80,8 @@ async function getCroppedImg(
 function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
-    image.onerror = reject;
+    image.onerror = (e) => reject(new Error(`Failed to load image: ${e}`));
     image.src = url;
   });
 }
@@ -94,6 +93,9 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Proxy the image through our own API to avoid CORS canvas tainting
+  const proxiedUrl = `/api/admin/proxy-image?url=${encodeURIComponent(imageUrl)}`;
 
   const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
@@ -114,9 +116,9 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
       console.log("[PhotoEditor] Starting getCroppedImg", {
         rotation,
         crop: croppedAreaPixels,
-        imageUrl: imageUrl.slice(0, 80),
+        imageUrl: proxiedUrl.slice(0, 80),
       });
-      const blob = await getCroppedImg(imageUrl, croppedAreaPixels, rotation);
+      const blob = await getCroppedImg(proxiedUrl, croppedAreaPixels, rotation);
       console.log("[PhotoEditor] Got blob", { size: blob.size, type: blob.type });
       if (blob.size === 0) {
         throw new Error("Generated image is empty (0 bytes). Possible CORS issue.");
@@ -184,7 +186,7 @@ export default function PhotoEditor({ imageUrl, pathname, onSave, onClose }: Pro
       {/* Cropper */}
       <div className="relative flex-1">
         <Cropper
-          image={imageUrl}
+          image={proxiedUrl}
           crop={crop}
           zoom={zoom}
           rotation={rotation}
