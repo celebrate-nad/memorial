@@ -1,5 +1,6 @@
 import { getMediaItems, getMusicItems } from "@/lib/media";
 import { getCurationConfig } from "@/lib/curation";
+import { getSlideshowSettings } from "@/lib/slideshow-settings";
 import { siteConfig } from "@/lib/site-config";
 import Slideshow from "@/components/Slideshow";
 
@@ -10,16 +11,21 @@ export default async function MemorialPage() {
   let allMedia: Awaited<ReturnType<typeof getMediaItems>> = [];
   let music: Awaited<ReturnType<typeof getMusicItems>> = [];
   let configError: string | null = null;
+  let photosPerSlide = 1;
+  let slideDurationMs = siteConfig.photoDurationMs;
 
   try {
-    const [mediaResult, musicResult, curation] = await Promise.all([
+    const [mediaResult, musicResult, curation, settings] = await Promise.all([
       getMediaItems(),
       getMusicItems(),
       getCurationConfig(),
+      getSlideshowSettings(),
     ]);
 
     allMedia = mediaResult;
     music = musicResult;
+    photosPerSlide = settings.photosPerSlide;
+    slideDurationMs = settings.slideDurationMs;
 
     // Filter to only curated items, in curated order
     if (curation.length > 0) {
@@ -71,8 +77,9 @@ export default async function MemorialPage() {
       name={siteConfig.name}
       dates={siteConfig.dates}
       message={siteConfig.message}
-      photoDurationMs={siteConfig.photoDurationMs}
+      photoDurationMs={slideDurationMs}
       maxVideoDurationMs={siteConfig.maxVideoDurationMs}
+      photosPerSlide={photosPerSlide}
     />
   );
 }

@@ -11,6 +11,7 @@ interface SlideshowProps {
   message: string;
   photoDurationMs: number;
   maxVideoDurationMs: number | null;
+  photosPerSlide: number;
 }
 
 export default function Slideshow({
@@ -21,9 +22,10 @@ export default function Slideshow({
   message,
   photoDurationMs,
   maxVideoDurationMs,
+  photosPerSlide,
 }: SlideshowProps) {
   const [started, setStarted] = useState(false);
-  const [index, setIndex] = useState(0);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [trackIndex, setTrackIndex] = useState(0);
 
@@ -31,53 +33,78 @@ export default function Slideshow({
   const audioRef = useRef<HTMLAudioElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const current = media[index];
+  // Group media into slides based on photosPerSlide
+  // Videos always get their own slide (full screen)
+  const slides: MediaItem[][] = [];
+  let photoBuffer: MediaItem[] = [];
+
+  for (const item of media) {
+    if (item.kind === "video") {
+      // Flush any buffered photos first
+      if (photoBuffer.length > 0) {
+        while (photoBuffer.length > 0) {
+          slides.push(photoBuffer.splice(0, photosPerSlide));
+        }
+      }
+      slides.push([item]);
+    } else {
+      photoBuffer.push(item);
+      if (photoBuffer.length === photosPerSlide) {
+        slides.push(photoBuffer.splice(0, photosPerSlide));
+      }
+    }
+  }
+  // Flush remaining photos
+  if (photoBuffer.length > 0) {
+    slides.push(photoBuffer);
+  }
+
+  const totalSlides = slides.length;
+  const currentSlide = slides[slideIndex] || [];
+  const isVideoSlide = currentSlide.length === 1 && currentSlide[0].kind === "video";
 
   const goToNext = useCallback(() => {
-    setIndex((prev) => (media.length === 0 ? 0 : (prev + 1) % media.length));
-  }, [media.length]);
+    setSlideIndex((prev) => (totalSlides === 0 ? 0 : (prev + 1) % totalSlides));
+  }, [totalSlides]);
 
-  // Advance the slideshow: photos advance on a timer, videos advance when
-  // they finish playing (or after maxVideoDurationMs, whichever is first).
+  // Advance the slideshow
   useEffect(() => {
-    if (!started || !current) return;
+    if (!started || currentSlide.length === 0) return;
 
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
 
-    if (current.kind === "photo") {
+    if (isVideoSlide) {
+      if (maxVideoDurationMs) {
+        timerRef.current = setTimeout(goToNext, maxVideoDurationMs);
+      }
+    } else {
       timerRef.current = setTimeout(goToNext, photoDurationMs);
-    } else if (current.kind === "video" && maxVideoDurationMs) {
-      timerRef.current = setTimeout(goToNext, maxVideoDurationMs);
     }
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [started, current, index, photoDurationMs, maxVideoDurationMs, goToNext]);
+  }, [started, slideIndex, currentSlide, isVideoSlide, photoDurationMs, maxVideoDurationMs, goToNext]);
 
-  // Play the current video from the start whenever it becomes active.
+  // Play video when it becomes active
   useEffect(() => {
-    if (started && current?.kind === "video" && videoRef.current) {
+    if (started && isVideoSlide && videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {
-        /* ignore autoplay rejection; user has already interacted via Begin */
-      });
+      videoRef.current.play().catch(() => {});
     }
-  }, [started, current]);
+  }, [started, slideIndex, isVideoSlide]);
 
-  // Advance the music playlist track by track, looping back to the start.
+  // Advance music
   const goToNextTrack = useCallback(() => {
     setTrackIndex((prev) => (music.length === 0 ? 0 : (prev + 1) % music.length));
   }, [music.length]);
 
   useEffect(() => {
     if (started && audioRef.current && music.length > 0) {
-      audioRef.current.play().catch(() => {
-        /* ignore autoplay rejection */
-      });
+      audioRef.current.play().catch(() => {});
     }
   }, [started, trackIndex, music.length]);
 
@@ -122,30 +149,57 @@ export default function Slideshow({
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-black">
-      {current.kind === "photo" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={current.pathname}
-          src={current.url}
-          alt=""
-          className="max-h-screen max-w-full object-contain"
-        />
-      ) : (
+      {isVideoSlide ? (
         <video
-          key={current.pathname}
+          key={currentSlide[0].pathname}
           ref={videoRef}
-          src={current.url}
+          src={currentSlide[0].url}
           className="max-h-screen max-w-full object-contain"
           muted={muted}
           playsInline
           onEnded={goToNext}
         />
+      ) : currentSlide.length === 1 ? (
+        // Single photo — full screen
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={currentSlide[0].pathname}
+          src={currentSlide[0].url}
+          alt=""
+          className="max-h-screen max-w-full object-contain"
+        />
+      ) : currentSlide.length === 2 ? (
+        // Two photos side by side
+        <div key={slideIndex} className="flex h-screen w-full items-center justify-center gap-2 p-4">
+          {currentSlide.map((item) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={item.pathname}
+              src={item.url}
+              alt=""
+              className="max-h-full max-w-[49%] object-contain"
+            />
+          ))}
+        </div>
+      ) : (
+        // 4 photos in a 2x2 grid
+        <div key={slideIndex} className="grid h-screen w-full grid-cols-2 grid-rows-2 gap-2 p-4">
+          {currentSlide.map((item) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={item.pathname}
+              src={item.url}
+              alt=""
+              className="h-full w-full object-contain"
+            />
+          ))}
+        </div>
       )}
 
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent p-4 text-sm text-neutral-300">
         <span>{name}</span>
         <span>
-          {index + 1} / {media.length}
+          {slideIndex + 1} / {totalSlides}
         </span>
       </div>
 

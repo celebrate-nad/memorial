@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 interface Props {
-  active: "select" | "reorder" | "duplicates" | "music";
+  active: "select" | "reorder" | "duplicates" | "music" | "settings";
 }
 
 export default function AdminNav({ active }: Props) {
@@ -48,6 +48,16 @@ export default function AdminNav({ active }: Props) {
         }`}
       >
         Music
+      </Link>
+      <Link
+        href="/admin/settings"
+        className={`rounded-md px-4 py-2 text-sm transition ${
+          active === "settings"
+            ? "bg-neutral-700 text-neutral-100"
+            : "text-neutral-400 hover:text-neutral-200"
+        }`}
+      >
+        Settings
       </Link>
     </nav>
   );
