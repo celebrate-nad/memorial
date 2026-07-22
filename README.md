@@ -147,3 +147,4 @@ Make sure the Blob store is connected to the project (step 2) so
 - `app/page.tsx` — the page, always fetches fresh media on each request.
 - `gmail-import/Code.gs` — Google Apps Script that imports Gmail
   attachments into Vercel Blob.
+
