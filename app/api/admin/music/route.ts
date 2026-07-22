@@ -17,14 +17,14 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as HandleUploadBody;
-
   try {
+    const body = (await request.json()) as HandleUploadBody;
+
     const jsonResponse = await handleUpload({
       body,
       request,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
       onBeforeGenerateToken: async (pathname) => {
-        // Validate the file extension
         const ext = pathname.split(".").pop()?.toLowerCase() ?? "";
         if (!AUDIO_EXTENSIONS.has(ext)) {
           throw new Error(`Invalid file type: .${ext}. Allowed: mp3, m4a, wav, ogg, aac`);
@@ -40,22 +40,26 @@ export async function POST(request: NextRequest) {
             "audio/aac",
             "audio/mp3",
           ],
-          maximumSizeInBytes: 50 * 1024 * 1024, // 50MB max
+          maximumSizeInBytes: 50 * 1024 * 1024,
         };
       },
       onUploadCompleted: async ({ blob }) => {
         console.log("[music/upload] Upload completed:", blob.pathname);
-        // Add to music order
-        const currentOrder = await getMusicOrderConfig();
-        const updatedOrder = [...currentOrder, blob.pathname];
-        await saveMusicOrderConfig(updatedOrder);
+        try {
+          const currentOrder = await getMusicOrderConfig();
+          const updatedOrder = [...currentOrder, blob.pathname];
+          await saveMusicOrderConfig(updatedOrder);
+        } catch (e) {
+          // onUploadCompleted can fail silently in some environments
+          console.error("[music/upload] Failed to update order:", e);
+        }
       },
     });
 
     return NextResponse.json(jsonResponse);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to upload";
+      error instanceof Error ? error.message : "Failed to handle upload";
     console.error("[music/upload] Error:", message, error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
