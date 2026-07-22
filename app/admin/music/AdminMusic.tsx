@@ -33,31 +33,17 @@ export default function AdminMusic({ initialMusic }: Props) {
 
     setUploading(true);
     try {
-      const formData = new FormData();
+      const { upload } = await import("@vercel/blob/client");
+
       for (let i = 0; i < files.length; i++) {
-        formData.append("files", files[i]);
+        const file = files[i];
+        await upload(`music/${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/admin/music",
+        });
       }
 
-      const res = await fetch("/api/admin/music", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        let errorMsg = `Upload failed (${res.status})`;
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          errorMsg = data.error || errorMsg;
-        } else {
-          const text = await res.text();
-          errorMsg = text.slice(0, 150) || errorMsg;
-        }
-        throw new Error(errorMsg);
-      }
-
-      const data = await res.json();
-      showMessage("success", `Uploaded ${data.uploaded.length} track(s)`);
+      showMessage("success", `Uploaded ${files.length} track(s)`);
 
       // Refresh the track list
       const listRes = await fetch("/api/admin/music");
