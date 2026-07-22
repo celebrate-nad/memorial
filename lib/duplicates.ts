@@ -8,6 +8,7 @@ interface HashEntry {
   hash: string;
   url: string;
   uploadedAt: string;
+  size: number;
 }
 
 interface HashCache {
@@ -16,7 +17,7 @@ interface HashCache {
 
 export interface DuplicateGroup {
   hash: string;
-  items: { pathname: string; url: string; uploadedAt: string }[];
+  items: { pathname: string; url: string; uploadedAt: string; size: number }[];
 }
 
 /**
@@ -76,7 +77,7 @@ async function hashBlob(url: string): Promise<string> {
  */
 export async function detectDuplicates(): Promise<DuplicateGroup[]> {
   // Get all media blobs
-  const allBlobs: { pathname: string; url: string; uploadedAt: string }[] = [];
+  const allBlobs: { pathname: string; url: string; uploadedAt: string; size: number }[] = [];
 
   for (const prefix of ["photos/", "videos/"] as const) {
     let cursor: string | undefined;
@@ -87,6 +88,7 @@ export async function detectDuplicates(): Promise<DuplicateGroup[]> {
           pathname: blob.pathname,
           url: blob.url,
           uploadedAt: blob.uploadedAt.toISOString(),
+          size: blob.size,
         });
       }
       cursor = result.cursor;
@@ -139,14 +141,14 @@ export async function detectDuplicates(): Promise<DuplicateGroup[]> {
     hashGroups.set(entry.hash, group);
   }
 
-  // Return only groups with duplicates (2+ items), sorted oldest first within each group
+  // Return only groups with duplicates (2+ items), sorted largest first within each group
   const duplicates: DuplicateGroup[] = [];
   for (const [hash, items] of hashGroups) {
     if (items.length < 2) continue;
-    items.sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+    items.sort((a, b) => b.size - a.size); // Largest file first (highest resolution)
     duplicates.push({
       hash,
-      items: items.map(({ pathname, url, uploadedAt }) => ({ pathname, url, uploadedAt })),
+      items: items.map(({ pathname, url, uploadedAt, size }) => ({ pathname, url, uploadedAt, size })),
     });
   }
 

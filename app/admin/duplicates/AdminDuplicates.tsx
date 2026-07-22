@@ -8,6 +8,7 @@ interface DuplicateItem {
   pathname: string;
   url: string;
   uploadedAt: string;
+  size: number;
 }
 
 interface DuplicateGroup {
@@ -84,7 +85,7 @@ export default function AdminDuplicates() {
 
     if (
       !confirm(
-        `Delete ${toDelete.length} duplicate(s), keeping the oldest copy of each? This cannot be undone.`,
+        `Delete ${toDelete.length} duplicate(s), keeping the highest resolution copy of each? This cannot be undone.`,
       )
     ) {
       return;
@@ -164,7 +165,7 @@ export default function AdminDuplicates() {
             <div className="mb-6 flex items-center justify-between">
               <p className="text-sm text-neutral-500">
                 Found {duplicates.length} group(s) with {totalDuplicates} duplicate(s).
-                The oldest copy in each group is marked &quot;Keep&quot;.
+                The highest resolution (largest file) in each group is marked &quot;Keep&quot;.
               </p>
               <button
                 onClick={handleDeleteAllDuplicates}
@@ -220,7 +221,7 @@ export default function AdminDuplicates() {
                             {item.pathname.split("/").pop()}
                           </div>
                           <div className="text-xs text-neutral-600">
-                            {new Date(item.uploadedAt).toLocaleDateString()}
+                            {(item.size / 1024).toFixed(0)} KB &middot; {new Date(item.uploadedAt).toLocaleDateString()}
                           </div>
                         </div>
                       </div>
