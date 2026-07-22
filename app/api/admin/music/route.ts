@@ -19,12 +19,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as HandleUploadBody;
+    console.log("[music/upload] POST received, body type:", body.type);
+    console.log("[music/upload] BLOB_READ_WRITE_TOKEN present:", !!process.env.BLOB_READ_WRITE_TOKEN);
 
     const jsonResponse = await handleUpload({
       body,
       request,
       token: process.env.BLOB_READ_WRITE_TOKEN,
       onBeforeGenerateToken: async (pathname) => {
+        console.log("[music/upload] onBeforeGenerateToken:", pathname);
         const ext = pathname.split(".").pop()?.toLowerCase() ?? "";
         if (!AUDIO_EXTENSIONS.has(ext)) {
           throw new Error(`Invalid file type: .${ext}. Allowed: mp3, m4a, wav, ogg, aac`);
@@ -50,17 +53,18 @@ export async function POST(request: NextRequest) {
           const updatedOrder = [...currentOrder, blob.pathname];
           await saveMusicOrderConfig(updatedOrder);
         } catch (e) {
-          // onUploadCompleted can fail silently in some environments
           console.error("[music/upload] Failed to update order:", e);
         }
       },
     });
 
+    console.log("[music/upload] handleUpload success, response keys:", Object.keys(jsonResponse));
     return NextResponse.json(jsonResponse);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to handle upload";
-    console.error("[music/upload] Error:", message, error);
+    const stack = error instanceof Error ? error.stack : "";
+    console.error("[music/upload] Error:", message, stack);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
