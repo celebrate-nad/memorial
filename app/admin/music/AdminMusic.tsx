@@ -33,17 +33,20 @@ export default function AdminMusic({ initialMusic }: Props) {
 
     setUploading(true);
     try {
-      const { upload } = await import("@vercel/blob/client");
-
+      const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        await upload(`music/${file.name}`, file, {
-          access: "public",
-          handleUploadUrl: "/api/admin/music",
-        });
+        formData.append("files", files[i]);
       }
 
-      showMessage("success", `Uploaded ${files.length} track(s)`);
+      const res = await fetch("/api/admin/music", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+
+      const data = await res.json();
+      showMessage("success", `Uploaded ${data.uploaded.length} track(s)`);
 
       // Refresh the track list
       const listRes = await fetch("/api/admin/music");
@@ -51,8 +54,8 @@ export default function AdminMusic({ initialMusic }: Props) {
         const listData = await listRes.json();
         setTracks(listData.music);
       }
-    } catch (err) {
-      showMessage("error", err instanceof Error ? err.message : "Failed to upload");
+    } catch {
+      showMessage("error", "Failed to upload");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

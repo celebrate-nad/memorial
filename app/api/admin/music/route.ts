@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { put } from "@vercel/blob";
 import { getMusicItems } from "@/lib/media";
 import { getMusicOrderConfig, saveMusicOrderConfig } from "@/lib/music-order";
 
@@ -18,53 +18,40 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as HandleUploadBody;
-    console.log("[music/upload] POST received, body type:", body.type);
-    console.log("[music/upload] BLOB_READ_WRITE_TOKEN present:", !!process.env.BLOB_READ_WRITE_TOKEN);
+    const formData = await request.formData();
+    const files = formData.getAll("files") as File[];
 
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      onBeforeGenerateToken: async (pathname) => {
-        console.log("[music/upload] onBeforeGenerateToken:", pathname);
-        const ext = pathname.split(".").pop()?.toLowerCase() ?? "";
-        if (!AUDIO_EXTENSIONS.has(ext)) {
-          throw new Error(`Invalid file type: .${ext}. Allowed: mp3, m4a, wav, ogg, aac`);
-        }
+    if (files.length === 0) {
+      return NextResponse.json({ error: "No files provided" }, { status: 400 });
+    }
 
-        return {
-          allowedContentTypes: [
-            "audio/mpeg",
-            "audio/mp4",
-            "audio/x-m4a",
-            "audio/wav",
-            "audio/ogg",
-            "audio/aac",
-            "audio/mp3",
-          ],
-          maximumSizeInBytes: 50 * 1024 * 1024,
-        };
-      },
-      onUploadCompleted: async ({ blob }) => {
-        console.log("[music/upload] Upload completed:", blob.pathname);
-        try {
-          const currentOrder = await getMusicOrderConfig();
-          const updatedOrder = [...currentOrder, blob.pathname];
-          await saveMusicOrderConfig(updatedOrder);
-        } catch (e) {
-          console.error("[music/upload] Failed to update order:", e);
-        }
-      },
-    });
+    const uploaded: string[] = [];
 
-    console.log("[music/upload] handleUpload success, response keys:", Object.keys(jsonResponse));
-    return NextResponse.json(jsonResponse);
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!AUDIO_EXTENSIONS.has(ext)) {
+        continue; // Skip non-audio files
+      }
+
+      const blob = await put(`music/${file.name}`, file, {
+        access: "public",
+        contentType: file.type || "audio/mpeg",
+      });
+
+      uploaded.push(blob.pathname);
+    }
+
+    // Add newly uploaded tracks to the end of the music order
+    if (uploaded.length > 0) {
+      const currentOrder = await getMusicOrderConfig();
+      const updatedOrder = [...currentOrder, ...uploaded];
+      await saveMusicOrderConfig(updatedOrder);
+    }
+
+    return NextResponse.json({ success: true, uploaded });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to handle upload";
-    const stack = error instanceof Error ? error.stack : "";
-    console.error("[music/upload] Error:", message, stack);
-    return NextResponse.json({ error: message }, { status: 400 });
+      error instanceof Error ? error.message : "Failed to upload";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
