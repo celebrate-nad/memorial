@@ -43,7 +43,18 @@ export default function AdminMusic({ initialMusic }: Props) {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Upload failed");
+      if (!res.ok) {
+        let errorMsg = `Upload failed (${res.status})`;
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } else {
+          const text = await res.text();
+          errorMsg = text.slice(0, 150) || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
 
       const data = await res.json();
       showMessage("success", `Uploaded ${data.uploaded.length} track(s)`);
@@ -54,8 +65,8 @@ export default function AdminMusic({ initialMusic }: Props) {
         const listData = await listRes.json();
         setTracks(listData.music);
       }
-    } catch {
-      showMessage("error", "Failed to upload");
+    } catch (err) {
+      showMessage("error", err instanceof Error ? err.message : "Failed to upload");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
