@@ -224,10 +224,23 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
 
         {/* Action bar */}
         <div className="mb-6 flex items-center justify-between">
-          <p className="text-sm text-neutral-500">
-            {selection.length} of {media.length} selected for memorial.
-            Check photos in the order you want them to appear.
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-neutral-500">
+              {selection.length} of {media.length} selected.
+            </p>
+            <button
+              onClick={() => setSelection(media.map((m) => m.pathname))}
+              className="text-xs text-neutral-400 transition hover:text-neutral-200"
+            >
+              Select All
+            </button>
+            <button
+              onClick={() => setSelection([])}
+              className="text-xs text-neutral-400 transition hover:text-neutral-200"
+            >
+              Deselect All
+            </button>
+          </div>
           <button
             onClick={saveSelection}
             disabled={saving}
