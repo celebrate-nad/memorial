@@ -1,22 +1,25 @@
 import { list, put, del } from "@vercel/blob";
 import { createHash } from "crypto";
+import sharp from "sharp";
 
 const HASH_CACHE_PREFIX = "config/hashes";
 
 interface HashEntry {
   pathname: string;
   hash: string;
+  phash: string; // perceptual hash
   url: string;
   uploadedAt: string;
   size: number;
 }
 
 interface HashCache {
-  entries: Record<string, string>; // pathname -> hash
+  entries: Record<string, { hash: string; phash: string }>; // pathname -> hashes
 }
 
 export interface DuplicateGroup {
   hash: string;
+  type: "exact" | "similar";
   items: { pathname: string; url: string; uploadedAt: string; size: number }[];
 }
 
@@ -36,7 +39,20 @@ async function loadHashCache(): Promise<HashCache> {
     if (!response.ok) return { entries: {} };
 
     const data = await response.json();
-    return data as HashCache;
+    // Handle old cache format (string values) by treating them as needing recomputation
+    if (data.entries) {
+      const entries: HashCache["entries"] = {};
+      for (const [key, value] of Object.entries(data.entries)) {
+        if (typeof value === "string") {
+          // Old format - needs phash recomputation
+          entries[key] = { hash: value, phash: "" };
+        } else {
+          entries[key] = value as { hash: string; phash: string };
+        }
+      }
+      return { entries };
+    }
+    return { entries: {} };
   } catch {
     return { entries: {} };
   }
@@ -46,7 +62,6 @@ async function loadHashCache(): Promise<HashCache> {
  * Save hash cache to Blob store.
  */
 async function saveHashCache(cache: HashCache): Promise<void> {
-  // Delete old cache blobs
   const result = await list({ prefix: HASH_CACHE_PREFIX, limit: 10 });
   const oldBlobs = result.blobs.filter((b) => b.pathname.startsWith(HASH_CACHE_PREFIX));
   if (oldBlobs.length > 0) {
@@ -60,20 +75,66 @@ async function saveHashCache(cache: HashCache): Promise<void> {
 }
 
 /**
- * Compute SHA-256 hash of a blob by downloading its content.
+ * Compute SHA-256 hash and perceptual hash (dHash) of a blob.
  */
-async function hashBlob(url: string): Promise<string> {
+async function hashBlob(url: string): Promise<{ hash: string; phash: string }> {
   const response = await fetch(url);
-  const buffer = await response.arrayBuffer();
-  const hash = createHash("sha256");
-  hash.update(Buffer.from(buffer));
-  return hash.digest("hex");
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  // SHA-256
+  const sha = createHash("sha256");
+  sha.update(buffer);
+  const hash = sha.digest("hex");
+
+  // Perceptual hash (dHash): resize to 9x8 grayscale, compare adjacent pixels
+  let phash = "";
+  try {
+    const pixels = await sharp(buffer)
+      .resize(9, 8, { fit: "fill" })
+      .grayscale()
+      .raw()
+      .toBuffer();
+
+    // dHash: for each row, compare pixel to its right neighbor
+    const bits: number[] = [];
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const left = pixels[y * 9 + x];
+        const right = pixels[y * 9 + x + 1];
+        bits.push(left < right ? 1 : 0);
+      }
+    }
+    // Convert 64 bits to hex string
+    phash = "";
+    for (let i = 0; i < 64; i += 4) {
+      const nibble = (bits[i] << 3) | (bits[i + 1] << 2) | (bits[i + 2] << 1) | bits[i + 3];
+      phash += nibble.toString(16);
+    }
+  } catch {
+    // If sharp fails (e.g. for videos), use empty phash
+    phash = "";
+  }
+
+  return { hash, phash };
 }
 
 /**
- * Detect duplicate media items by computing SHA-256 hashes of their content.
- * Uses a cache to avoid re-downloading already-hashed files.
- * Returns groups of items that share the same content hash.
+ * Compute hamming distance between two hex-encoded hashes.
+ */
+function hammingDistance(a: string, b: string): number {
+  if (!a || !b || a.length !== b.length) return 64; // Max distance if incomparable
+  let distance = 0;
+  for (let i = 0; i < a.length; i++) {
+    const xor = parseInt(a[i], 16) ^ parseInt(b[i], 16);
+    // Count bits in xor
+    distance += ((xor >> 3) & 1) + ((xor >> 2) & 1) + ((xor >> 1) & 1) + (xor & 1);
+  }
+  return distance;
+}
+
+/**
+ * Detect duplicate media items using both exact (SHA-256) and perceptual (dHash) matching.
+ * Returns groups of items that are either exact or visually similar duplicates.
  */
 export async function detectDuplicates(): Promise<DuplicateGroup[]> {
   // Get all media blobs
@@ -107,19 +168,28 @@ export async function detectDuplicates(): Promise<DuplicateGroup[]> {
     const batch = allBlobs.slice(i, i + CONCURRENCY);
     const results = await Promise.all(
       batch.map(async (blob) => {
-        let hash = cache.entries[blob.pathname];
-        if (!hash) {
-          hash = await hashBlob(blob.url);
-          cache.entries[blob.pathname] = hash;
+        const cached = cache.entries[blob.pathname];
+        let hash: string;
+        let phash: string;
+
+        if (cached && cached.hash && cached.phash) {
+          hash = cached.hash;
+          phash = cached.phash;
+        } else {
+          const result = await hashBlob(blob.url);
+          hash = result.hash;
+          phash = result.phash;
+          cache.entries[blob.pathname] = { hash, phash };
           cacheUpdated = true;
         }
-        return { ...blob, hash };
+
+        return { ...blob, hash, phash };
       }),
     );
     entries.push(...results);
   }
 
-  // Remove stale cache entries (deleted blobs)
+  // Remove stale cache entries
   const currentPathnames = new Set(allBlobs.map((b) => b.pathname));
   for (const pathname of Object.keys(cache.entries)) {
     if (!currentPathnames.has(pathname)) {
@@ -133,21 +203,66 @@ export async function detectDuplicates(): Promise<DuplicateGroup[]> {
     await saveHashCache(cache);
   }
 
-  // Group by hash
-  const hashGroups = new Map<string, HashEntry[]>();
+  // Step 1: Find exact duplicates (same SHA-256)
+  const exactGroups = new Map<string, HashEntry[]>();
   for (const entry of entries) {
-    const group = hashGroups.get(entry.hash) || [];
+    const group = exactGroups.get(entry.hash) || [];
     group.push(entry);
-    hashGroups.set(entry.hash, group);
+    exactGroups.set(entry.hash, group);
   }
 
-  // Return only groups with duplicates (2+ items), sorted largest first within each group
   const duplicates: DuplicateGroup[] = [];
-  for (const [hash, items] of hashGroups) {
+  const usedInExact = new Set<string>();
+
+  for (const [hash, items] of exactGroups) {
     if (items.length < 2) continue;
-    items.sort((a, b) => b.size - a.size); // Largest file first (highest resolution)
+    items.sort((a, b) => b.size - a.size);
     duplicates.push({
       hash,
+      type: "exact",
+      items: items.map(({ pathname, url, uploadedAt, size }) => ({ pathname, url, uploadedAt, size })),
+    });
+    for (const item of items) {
+      usedInExact.add(item.pathname);
+    }
+  }
+
+  // Step 2: Find near-duplicates via perceptual hash (hamming distance <= 5)
+  // Only consider photos not already in an exact duplicate group
+  const photoEntries = entries.filter(
+    (e) => !usedInExact.has(e.pathname) && e.phash && e.pathname.startsWith("photos/"),
+  );
+
+  const MAX_HAMMING_DISTANCE = 5;
+  const usedInSimilar = new Set<string>();
+  const similarGroups: HashEntry[][] = [];
+
+  for (let i = 0; i < photoEntries.length; i++) {
+    if (usedInSimilar.has(photoEntries[i].pathname)) continue;
+
+    const group: HashEntry[] = [photoEntries[i]];
+
+    for (let j = i + 1; j < photoEntries.length; j++) {
+      if (usedInSimilar.has(photoEntries[j].pathname)) continue;
+
+      const dist = hammingDistance(photoEntries[i].phash, photoEntries[j].phash);
+      if (dist <= MAX_HAMMING_DISTANCE) {
+        group.push(photoEntries[j]);
+        usedInSimilar.add(photoEntries[j].pathname);
+      }
+    }
+
+    if (group.length >= 2) {
+      usedInSimilar.add(photoEntries[i].pathname);
+      similarGroups.push(group);
+    }
+  }
+
+  for (const items of similarGroups) {
+    items.sort((a, b) => b.size - a.size);
+    duplicates.push({
+      hash: `similar-${items[0].phash}`,
+      type: "similar",
       items: items.map(({ pathname, url, uploadedAt, size }) => ({ pathname, url, uploadedAt, size })),
     });
   }

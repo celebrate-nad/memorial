@@ -13,6 +13,7 @@ interface DuplicateItem {
 
 interface DuplicateGroup {
   hash: string;
+  type: "exact" | "similar";
   items: DuplicateItem[];
 }
 
@@ -184,7 +185,12 @@ export default function AdminDuplicates() {
                   className="rounded-lg border border-neutral-800 bg-neutral-900 p-4"
                 >
                   <p className="mb-3 text-xs text-neutral-500">
-                    {group.items.length} copies &middot; hash: {group.hash.slice(0, 12)}...
+                    {group.items.length} copies &middot;{" "}
+                    {group.type === "exact" ? (
+                      <span className="text-neutral-400">Exact match</span>
+                    ) : (
+                      <span className="text-amber-400">Visually similar</span>
+                    )}
                   </p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                     {group.items.map((item, idx) => (
