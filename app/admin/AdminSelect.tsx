@@ -15,6 +15,7 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
   const [selection, setSelection] = useState<string[]>(initialCuration);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [media, setMedia] = useState<MediaItem[]>(initialMedia);
   const [editing, setEditing] = useState<MediaItem | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -123,6 +124,43 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
     showMessage("success", "Photo saved");
   };
 
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append("files", files[i]);
+      }
+
+      const res = await fetch("/api/admin/upload-photos", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const data = await res.json();
+      // Add newly uploaded items to the media list
+      const newItems: MediaItem[] = data.uploaded.map((item: { pathname: string; url: string; kind: string }) => ({
+        pathname: item.pathname,
+        url: item.url,
+        uploadedAt: new Date().toISOString(),
+        kind: item.kind as "photo" | "video",
+      }));
+      setMedia((prev) => [...prev, ...newItems]);
+      showMessage("success", `Uploaded ${data.uploaded.length} file(s)`);
+    } catch (err) {
+      showMessage("error", err instanceof Error ? err.message : "Failed to upload");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch("/api/admin/auth", { method: "DELETE" });
     router.push("/admin/login");
@@ -160,6 +198,29 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
             {message.text}
           </div>
         )}
+
+        {/* Upload zone */}
+        <div className="mb-6 rounded-lg border-2 border-dashed border-neutral-700 bg-neutral-900 p-6 text-center">
+          <p className="mb-3 text-sm text-neutral-400">
+            Upload photos or videos
+          </p>
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={(e) => handleUpload(e.target.files)}
+            className="hidden"
+            id="photo-upload"
+          />
+          <label
+            htmlFor="photo-upload"
+            className={`inline-block cursor-pointer rounded bg-neutral-700 px-6 py-2 text-sm font-medium text-neutral-200 transition hover:bg-neutral-600 ${
+              uploading ? "pointer-events-none opacity-50" : ""
+            }`}
+          >
+            {uploading ? "Uploading..." : "Choose Files"}
+          </label>
+        </div>
 
         {/* Action bar */}
         <div className="mb-6 flex items-center justify-between">
