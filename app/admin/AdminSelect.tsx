@@ -254,7 +254,15 @@ export default function AdminSelect({ initialMedia, initialCuration, resolutionM
 
         {/* Media grid with checkboxes */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {media.map((item) => {
+          {(() => {
+            // Show selected photos first (in curated order), then unselected
+            const selectedSet = new Set(selection);
+            const selectedItems = selection
+              .map((pathname) => media.find((m) => m.pathname === pathname))
+              .filter((m): m is MediaItem => m != null);
+            const unselectedItems = media.filter((m) => !selectedSet.has(m.pathname));
+            return [...selectedItems, ...unselectedItems];
+          })().map((item) => {
             const isSelected = selection.includes(item.pathname);
             const orderIndex = selection.indexOf(item.pathname);
 
