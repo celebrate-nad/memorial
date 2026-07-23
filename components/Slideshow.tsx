@@ -65,8 +65,17 @@ export default function Slideshow({
   const isVideoSlide = currentSlide.length === 1 && currentSlide[0].kind === "video";
 
   const goToNext = useCallback(() => {
-    setSlideIndex((prev) => (totalSlides === 0 ? 0 : (prev + 1) % totalSlides));
+    setSlideIndex((prev) => {
+      if (totalSlides === 0) return 0;
+      // Stop at the last slide instead of looping
+      if (prev >= totalSlides - 1) return prev;
+      return prev + 1;
+    });
   }, [totalSlides]);
+
+  const goToPrev = useCallback(() => {
+    setSlideIndex((prev) => (prev <= 0 ? 0 : prev - 1));
+  }, []);
 
   // Advance the slideshow
   useEffect(() => {
@@ -126,6 +135,34 @@ export default function Slideshow({
   function handleBegin() {
     setStarted(true);
   }
+
+  // Keyboard controls: arrow keys for forward/back, F for fullscreen, space for pause
+  useEffect(() => {
+    if (!started) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goToNext();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goToPrev();
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else if (e.key === " ") {
+        e.preventDefault();
+        setPaused((p) => !p);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [started, goToNext, goToPrev]);
 
   const currentTrack = music[trackIndex];
 
@@ -229,6 +266,21 @@ export default function Slideshow({
         className="absolute right-4 top-4 rounded-full bg-black/50 px-3 py-2 text-xs text-neutral-200 hover:bg-black/70"
       >
         {muted ? "Video muted" : "Video sound on"}
+      </button>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        }}
+        aria-label="Toggle fullscreen"
+        className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-2 text-xs text-neutral-200 hover:bg-black/70"
+      >
+        Fullscreen
       </button>
 
       {/* Pause indicator */}
