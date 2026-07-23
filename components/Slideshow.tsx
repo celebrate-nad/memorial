@@ -12,6 +12,8 @@ interface SlideshowProps {
   photoDurationMs: number;
   maxVideoDurationMs: number | null;
   photosPerSlide: number;
+  beginPhoto?: string | null;
+  endPhoto?: string | null;
 }
 
 export default function Slideshow({
@@ -23,6 +25,8 @@ export default function Slideshow({
   photoDurationMs,
   maxVideoDurationMs,
   photosPerSlide,
+  beginPhoto,
+  endPhoto,
 }: SlideshowProps) {
   const [started, setStarted] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -58,6 +62,15 @@ export default function Slideshow({
   // Flush remaining photos
   if (photoBuffer.length > 0) {
     slides.push(photoBuffer);
+  }
+
+  // Prepend beginning slide if set
+  if (beginPhoto) {
+    slides.unshift([{ url: beginPhoto, pathname: "__begin__", uploadedAt: "", kind: "photo" }]);
+  }
+  // Append ending slide if set
+  if (endPhoto) {
+    slides.push([{ url: endPhoto, pathname: "__end__", uploadedAt: "", kind: "photo" }]);
   }
 
   const totalSlides = slides.length;

@@ -5,11 +5,15 @@ const SETTINGS_PREFIX = "config/slideshow-settings";
 export interface SlideshowSettings {
   photosPerSlide: number; // 1, 2, or 4
   slideDurationMs: number; // milliseconds per slide
+  beginPhoto: string | null; // URL of beginning slide image
+  endPhoto: string | null; // URL of ending slide image
 }
 
 const DEFAULTS: SlideshowSettings = {
   photosPerSlide: 1,
   slideDurationMs: 4000,
+  beginPhoto: null,
+  endPhoto: null,
 };
 
 /**
@@ -32,6 +36,8 @@ export async function getSlideshowSettings(): Promise<SlideshowSettings> {
     return {
       photosPerSlide: data.photosPerSlide ?? DEFAULTS.photosPerSlide,
       slideDurationMs: data.slideDurationMs ?? DEFAULTS.slideDurationMs,
+      beginPhoto: data.beginPhoto ?? DEFAULTS.beginPhoto,
+      endPhoto: data.endPhoto ?? DEFAULTS.endPhoto,
     };
   } catch {
     return DEFAULTS;

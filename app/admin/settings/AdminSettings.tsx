@@ -4,14 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminNav from "../AdminNav";
 import { SlideshowSettings } from "@/lib/slideshow-settings";
+import { MediaItem } from "@/lib/media";
 
 interface Props {
   initialSettings: SlideshowSettings;
+  photos: MediaItem[];
 }
 
-export default function AdminSettings({ initialSettings }: Props) {
+export default function AdminSettings({ initialSettings, photos }: Props) {
   const [photosPerSlide, setPhotosPerSlide] = useState(initialSettings.photosPerSlide);
   const [slideDurationMs, setSlideDurationMs] = useState(initialSettings.slideDurationMs);
+  const [beginPhoto, setBeginPhoto] = useState<string | null>(initialSettings.beginPhoto);
+  const [endPhoto, setEndPhoto] = useState<string | null>(initialSettings.endPhoto);
+  const [picker, setPicker] = useState<"begin" | "end" | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const router = useRouter();
@@ -27,7 +32,7 @@ export default function AdminSettings({ initialSettings }: Props) {
       const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photosPerSlide, slideDurationMs }),
+        body: JSON.stringify({ photosPerSlide, slideDurationMs, beginPhoto, endPhoto }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -46,8 +51,7 @@ export default function AdminSettings({ initialSettings }: Props) {
     router.push("/admin/login");
   };
 
-  // Calculate estimated total time
-  const totalSlides = Math.ceil(100 / photosPerSlide); // rough estimate
+  const totalSlides = Math.ceil(100 / photosPerSlide);
   const totalMinutes = (totalSlides * slideDurationMs) / 1000 / 60;
 
   return (
@@ -79,14 +83,131 @@ export default function AdminSettings({ initialSettings }: Props) {
           </div>
         )}
 
-        <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
+        {/* Beginning & Ending Slides */}
+        <div className="mb-8 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
+          <h2 className="mb-6 text-lg font-light text-neutral-200">Beginning &amp; Ending Slides</h2>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            {/* Beginning slide */}
+            <div>
+              <label className="mb-2 block text-sm text-neutral-400">First Slide</label>
+              {beginPhoto ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={beginPhoto}
+                    alt="Beginning slide"
+                    className="w-full rounded-lg border border-neutral-700 object-cover"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => setPicker("begin")}
+                      className="text-xs text-neutral-400 transition hover:text-neutral-200"
+                    >
+                      Change
+                    </button>
+                    <button
+                      onClick={() => setBeginPhoto(null)}
+                      className="text-xs text-red-400 transition hover:text-red-300"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setPicker("begin")}
+                  className="w-full rounded border border-dashed border-neutral-600 px-4 py-8 text-sm text-neutral-400 transition hover:border-neutral-400 hover:text-neutral-200"
+                >
+                  Choose first slide image
+                </button>
+              )}
+            </div>
+
+            {/* Ending slide */}
+            <div>
+              <label className="mb-2 block text-sm text-neutral-400">Last Slide</label>
+              {endPhoto ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={endPhoto}
+                    alt="Ending slide"
+                    className="w-full rounded-lg border border-neutral-700 object-cover"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => setPicker("end")}
+                      className="text-xs text-neutral-400 transition hover:text-neutral-200"
+                    >
+                      Change
+                    </button>
+                    <button
+                      onClick={() => setEndPhoto(null)}
+                      className="text-xs text-red-400 transition hover:text-red-300"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setPicker("end")}
+                  className="w-full rounded border border-dashed border-neutral-600 px-4 py-8 text-sm text-neutral-400 transition hover:border-neutral-400 hover:text-neutral-200"
+                >
+                  Choose last slide image
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Photo picker modal */}
+        {picker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="max-h-[80vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg text-neutral-200">
+                  Choose {picker === "begin" ? "first" : "last"} slide
+                </h3>
+                <button
+                  onClick={() => setPicker(null)}
+                  className="text-neutral-400 hover:text-neutral-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                {photos.map((photo) => (
+                  <button
+                    key={photo.pathname}
+                    onClick={() => {
+                      if (picker === "begin") setBeginPhoto(photo.url);
+                      else setEndPhoto(photo.url);
+                      setPicker(null);
+                    }}
+                    className="overflow-hidden rounded-lg border border-neutral-700 transition hover:border-neutral-500"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="aspect-square w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Slideshow Settings */}
+        <div className="mb-8 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
           <h2 className="mb-6 text-lg font-light text-neutral-200">Slideshow Settings</h2>
 
           {/* Photos per slide */}
           <div className="mb-6">
-            <label className="mb-2 block text-sm text-neutral-400">
-              Photos per slide
-            </label>
+            <label className="mb-2 block text-sm text-neutral-400">Photos per slide</label>
             <div className="flex gap-3">
               {[1, 2, 4].map((n) => (
                 <button
@@ -102,18 +223,11 @@ export default function AdminSettings({ initialSettings }: Props) {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-neutral-600">
-              {photosPerSlide === 1 && "Each photo takes up the full screen."}
-              {photosPerSlide === 2 && "Two photos side by side per slide."}
-              {photosPerSlide === 4 && "Four photos in a 2×2 grid per slide."}
-            </p>
           </div>
 
           {/* Slide duration */}
           <div className="mb-6">
-            <label className="mb-2 block text-sm text-neutral-400">
-              Duration per slide (seconds)
-            </label>
+            <label className="mb-2 block text-sm text-neutral-400">Duration per slide (seconds)</label>
             <div className="flex items-center gap-4">
               <input
                 type="range"
@@ -135,16 +249,16 @@ export default function AdminSettings({ initialSettings }: Props) {
             With {photosPerSlide} photo(s) per slide at {(slideDurationMs / 1000).toFixed(1)}s each,
             100 photos would take ~{totalMinutes.toFixed(1)} minutes.
           </div>
-
-          {/* Save */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded bg-blue-700 px-6 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
         </div>
+
+        {/* Save */}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded bg-blue-700 px-6 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save All Settings"}
+        </button>
 
         {/* Download */}
         <div className="mt-8 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
