@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MediaItem } from "@/lib/media";
+import { ImageDimensions } from "@/lib/resolution";
 import AdminNav from "./AdminNav";
 import PhotoEditor from "./PhotoEditor";
 
 interface Props {
   initialMedia: MediaItem[];
   initialCuration: string[];
+  resolutionMap: Record<string, ImageDimensions>;
 }
 
-export default function AdminSelect({ initialMedia, initialCuration }: Props) {
+export default function AdminSelect({ initialMedia, initialCuration, resolutionMap }: Props) {
   const [selection, setSelection] = useState<string[]>(initialCuration);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -317,6 +319,28 @@ export default function AdminSelect({ initialMedia, initialCuration }: Props) {
                 >
                   {deleting === item.pathname ? "..." : "✕"}
                 </button>
+
+                {/* Resolution warning */}
+                {item.kind === "photo" && (() => {
+                  const dims = resolutionMap[item.pathname];
+                  if (!dims) return null;
+                  const maxDim = Math.max(dims.width, dims.height);
+                  if (maxDim < 500) {
+                    return (
+                      <div className="absolute bottom-8 left-2 rounded bg-red-800/90 px-1.5 py-0.5 text-[10px] text-red-200" title={`${dims.width}×${dims.height}`}>
+                        {dims.width}×{dims.height}
+                      </div>
+                    );
+                  }
+                  if (maxDim < 1080) {
+                    return (
+                      <div className="absolute bottom-8 left-2 rounded bg-amber-800/90 px-1.5 py-0.5 text-[10px] text-amber-200" title={`${dims.width}×${dims.height} — may look soft on a projector`}>
+                        {dims.width}×{dims.height}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Filename */}
                 <div className="truncate px-2 py-1.5 text-xs text-neutral-500">
