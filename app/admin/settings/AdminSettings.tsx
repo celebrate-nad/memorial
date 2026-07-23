@@ -145,6 +145,20 @@ export default function AdminSettings({ initialSettings }: Props) {
             {saving ? "Saving..." : "Save Settings"}
           </button>
         </div>
+
+        {/* Download */}
+        <div className="mt-8 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
+          <h2 className="mb-4 text-lg font-light text-neutral-200">Download</h2>
+          <p className="mb-4 text-sm text-neutral-400">
+            Download all curated photos (numbered in order) and music tracks as a ZIP file.
+          </p>
+          <a
+            href="/api/admin/download"
+            className="inline-block rounded bg-neutral-700 px-6 py-2 text-sm font-medium text-neutral-200 transition hover:bg-neutral-600"
+          >
+            Download ZIP
+          </a>
+        </div>
       </div>
     </main>
   );
