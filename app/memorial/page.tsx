@@ -13,6 +13,9 @@ export default async function MemorialPage() {
   let configError: string | null = null;
   let photosPerSlide = 1;
   let slideDurationMs = siteConfig.photoDurationMs;
+  let coverPhoto: string | null = null;
+  let coverText = "";
+  let coverSubtext = "";
 
   try {
     const [mediaResult, musicResult, curation, settings] = await Promise.all([
@@ -26,6 +29,9 @@ export default async function MemorialPage() {
     music = musicResult;
     photosPerSlide = settings.photosPerSlide;
     slideDurationMs = settings.slideDurationMs;
+    coverPhoto = settings.coverPhoto;
+    coverText = settings.coverText;
+    coverSubtext = settings.coverSubtext;
 
     // Filter to only curated items, in curated order
     if (curation.length > 0) {
@@ -80,6 +86,9 @@ export default async function MemorialPage() {
       photoDurationMs={slideDurationMs}
       maxVideoDurationMs={siteConfig.maxVideoDurationMs}
       photosPerSlide={photosPerSlide}
+      coverPhoto={coverPhoto}
+      coverText={coverText}
+      coverSubtext={coverSubtext}
     />
   );
 }

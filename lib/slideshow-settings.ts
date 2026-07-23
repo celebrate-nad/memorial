@@ -5,11 +5,17 @@ const SETTINGS_PREFIX = "config/slideshow-settings";
 export interface SlideshowSettings {
   photosPerSlide: number; // 1, 2, or 4
   slideDurationMs: number; // milliseconds per slide
+  coverPhoto: string | null; // URL of cover photo, or null for no cover
+  coverText: string; // Text overlay on cover slide
+  coverSubtext: string; // Smaller text below main cover text
 }
 
 const DEFAULTS: SlideshowSettings = {
   photosPerSlide: 1,
   slideDurationMs: 4000,
+  coverPhoto: null,
+  coverText: "",
+  coverSubtext: "",
 };
 
 /**
@@ -32,6 +38,9 @@ export async function getSlideshowSettings(): Promise<SlideshowSettings> {
     return {
       photosPerSlide: data.photosPerSlide ?? DEFAULTS.photosPerSlide,
       slideDurationMs: data.slideDurationMs ?? DEFAULTS.slideDurationMs,
+      coverPhoto: data.coverPhoto ?? DEFAULTS.coverPhoto,
+      coverText: data.coverText ?? DEFAULTS.coverText,
+      coverSubtext: data.coverSubtext ?? DEFAULTS.coverSubtext,
     };
   } catch {
     return DEFAULTS;
