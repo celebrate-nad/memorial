@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { photosPerSlide, slideDurationMs, coverPhoto, coverText, coverSubtext } = await request.json();
+    const { photosPerSlide, slideDurationMs } = await request.json();
 
     if (![1, 2, 4].includes(photosPerSlide)) {
       return NextResponse.json(
@@ -30,13 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await saveSlideshowSettings({
-      photosPerSlide,
-      slideDurationMs,
-      coverPhoto: coverPhoto || null,
-      coverText: coverText || "",
-      coverSubtext: coverSubtext || "",
-    });
+    await saveSlideshowSettings({ photosPerSlide, slideDurationMs });
 
     return NextResponse.json({ success: true });
   } catch (error) {

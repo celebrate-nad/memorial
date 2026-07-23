@@ -12,9 +12,6 @@ interface SlideshowProps {
   photoDurationMs: number;
   maxVideoDurationMs: number | null;
   photosPerSlide: number;
-  coverPhoto?: string | null;
-  coverText?: string;
-  coverSubtext?: string;
 }
 
 export default function Slideshow({
@@ -26,12 +23,8 @@ export default function Slideshow({
   photoDurationMs,
   maxVideoDurationMs,
   photosPerSlide,
-  coverPhoto,
-  coverText,
-  coverSubtext,
 }: SlideshowProps) {
   const [started, setStarted] = useState(false);
-  const [showCover, setShowCover] = useState(true);
   const [slideIndex, setSlideIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -169,64 +162,7 @@ export default function Slideshow({
     );
   }
 
-  const hasCover = !!(coverPhoto || coverText);
-
-  // Auto-advance from cover to slideshow
-  useEffect(() => {
-    if (!started || !hasCover || !showCover || paused) return;
-
-    const timer = setTimeout(() => {
-      setShowCover(false);
-    }, photoDurationMs * 2); // Cover stays twice as long as a normal slide
-
-    return () => clearTimeout(timer);
-  }, [started, hasCover, showCover, paused, photoDurationMs]);
-
   const togglePause = () => setPaused((p) => !p);
-
-  // Render cover page
-  if (started && hasCover && showCover) {
-    return (
-      <main
-        onClick={togglePause}
-        className="relative flex min-h-screen cursor-pointer items-center justify-center bg-black"
-      >
-        {coverPhoto && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverPhoto}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-40"
-          />
-        )}
-        <div className="relative z-10 text-center px-6">
-          {coverText && (
-            <h1 className="text-4xl font-light tracking-wide text-white sm:text-5xl">
-              {coverText}
-            </h1>
-          )}
-          {coverSubtext && (
-            <p className="mt-4 text-lg text-neutral-300">{coverSubtext}</p>
-          )}
-        </div>
-
-        {paused && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/60 p-6">
-            <span className="text-4xl text-white">⏸</span>
-          </div>
-        )}
-
-        {music.length > 0 && currentTrack && (
-          <audio
-            ref={audioRef}
-            src={currentTrack.url}
-            onEnded={goToNextTrack}
-            autoPlay
-          />
-        )}
-      </main>
-    );
-  }
 
   return (
     <main
