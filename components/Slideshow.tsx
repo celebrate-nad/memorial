@@ -214,12 +214,24 @@ export default function Slideshow({
 
   const togglePause = () => setPaused((p) => !p);
 
+  const isBeginOrEndSlide = currentSlide.length === 1 &&
+    (currentSlide[0].pathname === "__begin__" || currentSlide[0].pathname === "__end__");
+
   return (
     <main
       onClick={togglePause}
       className="relative flex min-h-screen cursor-pointer items-center justify-center bg-black"
     >
-      {isVideoSlide ? (
+      {isBeginOrEndSlide ? (
+        // Begin/end slide — fill the screen as much as possible
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={currentSlide[0].pathname}
+          src={currentSlide[0].url}
+          alt=""
+          className="h-screen w-screen object-contain"
+        />
+      ) : isVideoSlide ? (
         <video
           key={currentSlide[0].pathname}
           ref={videoRef}
