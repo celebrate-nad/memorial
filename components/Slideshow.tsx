@@ -27,6 +27,7 @@ export default function Slideshow({
   const [started, setStarted] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
   const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [trackIndex, setTrackIndex] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,7 +70,7 @@ export default function Slideshow({
 
   // Advance the slideshow
   useEffect(() => {
-    if (!started || currentSlide.length === 0) return;
+    if (!started || currentSlide.length === 0 || paused) return;
 
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -87,15 +88,29 @@ export default function Slideshow({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [started, slideIndex, currentSlide, isVideoSlide, photoDurationMs, maxVideoDurationMs, goToNext]);
+  }, [started, slideIndex, currentSlide, isVideoSlide, paused, photoDurationMs, maxVideoDurationMs, goToNext]);
 
   // Play video when it becomes active
   useEffect(() => {
     if (started && isVideoSlide && videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
+      if (paused) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => {});
+      }
     }
-  }, [started, slideIndex, isVideoSlide]);
+  }, [started, slideIndex, isVideoSlide, paused]);
+
+  // Pause/resume audio
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (paused) {
+      audioRef.current.pause();
+    } else if (started) {
+      audioRef.current.play().catch(() => {});
+    }
+  }, [paused, started]);
 
   // Advance music
   const goToNextTrack = useCallback(() => {
@@ -147,8 +162,13 @@ export default function Slideshow({
     );
   }
 
+  const togglePause = () => setPaused((p) => !p);
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-black">
+    <main
+      onClick={togglePause}
+      className="relative flex min-h-screen cursor-pointer items-center justify-center bg-black"
+    >
       {isVideoSlide ? (
         <video
           key={currentSlide[0].pathname}
@@ -204,12 +224,19 @@ export default function Slideshow({
       </div>
 
       <button
-        onClick={() => setMuted((m) => !m)}
+        onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
         aria-label={muted ? "Unmute video" : "Mute video"}
         className="absolute right-4 top-4 rounded-full bg-black/50 px-3 py-2 text-xs text-neutral-200 hover:bg-black/70"
       >
         {muted ? "Video muted" : "Video sound on"}
       </button>
+
+      {/* Pause indicator */}
+      {paused && (
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/60 p-6">
+          <span className="text-4xl text-white">⏸</span>
+        </div>
+      )}
 
       {music.length > 0 && currentTrack && (
         <audio
